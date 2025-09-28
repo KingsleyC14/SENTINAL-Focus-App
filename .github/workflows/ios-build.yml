@@ -1,0 +1,56 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+      
+    - name: Setup Expo
+      run: npm install -g @expo/cli
+      
+    - name: Install iOS dependencies
+      run: |
+        cd ios
+        pod install
+        cd ..
+        
+    - name: Build iOS app
+      run: npx expo run:ios --configuration Release
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-build
+        path: ios/build/
+        
+    - name: Create IPA file
+      run: |
+        cd ios
+        xcodebuild -workspace SENTINAL.xcworkspace -scheme SENTINAL -configuration Release -archivePath SENTINAL.xcarchive archive
+        xcodebuild -exportArchive -archivePath SENTINAL.xcarchive -exportPath ./build -exportOptionsPlist ExportOptions.plist
+        cd ..
+        
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-ipa
+        path: ios/build/*.ipa
