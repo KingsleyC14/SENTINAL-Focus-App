@@ -1,0 +1,56 @@
+name: Expo iOS Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm install --legacy-peer-deps
+      
+    - name: Setup Expo CLI
+      run: npm install -g @expo/cli
+      
+    - name: Install iOS dependencies
+      run: |
+        cd ios
+        pod install
+        cd ..
+        
+    - name: Build for iOS
+      run: npx expo run:ios --configuration Release --device
+      env:
+        EXPO_USE_DEV_SERVER: false
+        
+    - name: Archive build
+      run: |
+        cd ios
+        xcodebuild -workspace SENTINAL.xcworkspace -scheme SENTINAL -configuration Release -archivePath SENTINAL.xcarchive archive
+        
+    - name: Export IPA
+      run: |
+        cd ios
+        xcodebuild -exportArchive -archivePath SENTINAL.xcarchive -exportPath ./build -exportOptionsPlist ExportOptions.plist
+        
+    - name: Upload IPA artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: sentinal-ios-app
+        path: ios/build/*.ipa
+        retention-days: 30
