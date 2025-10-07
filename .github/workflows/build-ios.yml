@@ -33,10 +33,16 @@ jobs:
       run: npm ci
       
     - name: Initialize EAS project
-      run: eas init --non-interactive
+      run: |
+        echo "Initializing EAS project..."
+        eas init --non-interactive
+        echo "EAS project initialized successfully"
         
     - name: Build iOS app (Development)
-      run: eas build --platform ios --profile development --non-interactive
+      run: |
+        echo "Starting iOS build..."
+        eas build --platform ios --profile development --non-interactive
+        echo "Build completed successfully"
         
     - name: Download build artifacts
       run: |
