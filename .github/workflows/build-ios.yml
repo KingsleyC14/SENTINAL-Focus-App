@@ -35,7 +35,7 @@ jobs:
     - name: Initialize EAS project
       run: |
         echo "Initializing EAS project..."
-        eas init --non-interactive
+        eas init --non-interactive --force
         echo "EAS project initialized successfully"
         
     - name: Build iOS app (Development)
