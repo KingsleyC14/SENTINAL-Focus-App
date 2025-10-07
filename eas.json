@@ -10,7 +10,8 @@
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "autoIncrement": true
+        "autoIncrement": true,
+        "credentialsSource": "remote"
       }
     },
     "preview": {
@@ -18,14 +19,16 @@
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "autoIncrement": true
+        "autoIncrement": true,
+        "credentialsSource": "local"
       }
     },
     "production": {
       "ios": {
         "resourceClass": "m-medium",
         "simulator": false,
-        "autoIncrement": true
+        "autoIncrement": true,
+        "credentialsSource": "remote"
       }
     }
   },
