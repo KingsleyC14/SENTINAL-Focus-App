@@ -10,7 +10,8 @@ import {
   SafeAreaView,
   StatusBar,
   Dimensions,
-  ScrollView
+  ScrollView,
+  Image
 } from "react-native";
 // import { LinearGradient } from 'expo-linear-gradient';
 
@@ -407,6 +408,30 @@ function CustomIcon({ size = 20, color = '#000' }) {
   );
 }
 
+function SentinalLogo({ size = 60, color = "#4A7C59" }) {
+  return (
+    <View style={{ 
+      width: size, 
+      height: size * 0.8,
+      backgroundColor: '#000',
+      borderRadius: size * 0.08,
+      padding: size * 0.02,
+      justifyContent: 'center',
+      alignItems: 'center'
+    }}>
+      <Image 
+        source={require('./SENTINAL-LOGO.png')}
+        style={{ 
+          width: size * 0.9, 
+          height: size * 0.7,
+          resizeMode: 'contain',
+          tintColor: color
+        }}
+      />
+    </View>
+  );
+}
+
 // Styles
 const styles = StyleSheet.create({
   container: {
@@ -614,7 +639,8 @@ function SplashScreen({ navigation }) {
         </View>
         
         <View style={styles.centerContent}>
-          <Text style={[styles.title, { color: theme.accentGreen }]}>SENTINAL</Text>
+          <SentinalLogo size={180} color={theme.accentGreen} />
+          <Text style={[styles.title, { color: theme.accentGreen, marginTop: 30, fontSize: 42 }]}>SENTINAL</Text>
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Focus Mode for iOS{'\n'}
             Block distractions, boost productivity
@@ -696,7 +722,8 @@ function PresetSelectionScreen({ navigation }) {
   const selectPreset = (name) => {
     navigation.navigate("FocusModeScreen", { 
       preset: presets[name],
-      presetName: name
+      presetName: name,
+      forceNewSession: true  // This will trigger ending any existing session
     });
   };
 
@@ -737,9 +764,10 @@ function PresetSelectionScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           bounces={true}
         >
-          <Text style={[styles.title, { color: theme.accentGreen, fontSize: 32, marginBottom: 10 }]}>
-            SENTINAL
-          </Text>
+              <SentinalLogo size={140} color={theme.accentGreen} />
+              <Text style={[styles.title, { color: theme.accentGreen, fontSize: 36, marginBottom: 10, marginTop: 20 }]}>
+                SENTINAL
+              </Text>
           <Text style={[styles.subtitle, { color: theme.text, fontSize: 16, marginBottom: 40 }]}>
             Choose your focus mode
           </Text>
@@ -776,11 +804,8 @@ function PresetSelectionScreen({ navigation }) {
                 <Text style={[styles.presetTitle, { color: theme.text, fontSize: 18, marginBottom: 5 }]}>
                   {presets[presetName].title}
                 </Text>
-                <Text style={[styles.presetSubtitle, { color: theme.textSecondary, fontSize: 14, marginBottom: 8 }]}>
+                <Text style={[styles.presetSubtitle, { color: theme.textSecondary, fontSize: 14 }]}>
                   {presets[presetName].description}
-                </Text>
-                <Text style={{ color: theme.accentGreen, fontSize: 14, fontWeight: '600' }}>
-                  {presets[presetName].duration}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -983,24 +1008,68 @@ function CustomTimeScreen({ navigation }) {
 }
 
 function FocusModeScreen({ route, navigation }) {
-  const { preset, presetName } = route.params;
+  const { preset, presetName, forceNewSession } = route.params;
   const { theme, toggleTheme } = useTheme();
   const [customMinutes, setCustomMinutes] = useState(parseInt(preset.duration));
   const [timeLeft, setTimeLeft] = useState(customMinutes * 60);
   const [isActive, setIsActive] = useState(false);
   const [appsBlocked, setAppsBlocked] = useState(0);
+  const [isProtected, setIsProtected] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [blockedAppsList, setBlockedAppsList] = useState([]);
+
+  // Handle forceNewSession - automatically end any existing session
+  React.useEffect(() => {
+    if (forceNewSession) {
+      // End any existing session when navigating to a new focus mode
+      setIsActive(false);
+      setIsProtected(false);
+      setSessionStartTime(null);
+      setBlockedAppsList([]);
+      setAppsBlocked(0);
+      setTimeLeft(customMinutes * 60); // Reset timer to full duration
+    }
+  }, [forceNewSession, customMinutes]);
 
   React.useEffect(() => {
     let interval = null;
     if (isActive && timeLeft > 0) {
+      // Start protection when timer starts
+      if (!isProtected) {
+        setIsProtected(true);
+        setSessionStartTime(new Date());
+        setBlockedAppsList(preset.blockedApps);
+        setAppsBlocked(preset.blockedApps.length);
+      }
+      
       interval = setInterval(() => {
-        setTimeLeft(timeLeft => timeLeft - 1);
+        setTimeLeft(timeLeft => {
+          if (timeLeft <= 1) {
+            setIsActive(false);
+            setIsProtected(false);
+            setSessionStartTime(null);
+            setBlockedAppsList([]);
+            setAppsBlocked(0);
+            navigation.navigate("FocusEndedScreen", { 
+              preset: preset,
+              presetName: presetName,
+              timeSpent: customMinutes * 60 - timeLeft + 1
+            });
+            return 0;
+          }
+          return timeLeft - 1;
+        });
       }, 1000);
+    } else if (!isActive && timeLeft !== 0) {
+      // Pause protection when timer is paused
+      setIsProtected(false);
+      clearInterval(interval);
     } else if (timeLeft === 0) {
       setIsActive(false);
+      setIsProtected(false);
     }
     return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, navigation, preset, presetName, customMinutes, isProtected]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -1009,18 +1078,37 @@ function FocusModeScreen({ route, navigation }) {
   };
 
   const toggleTimer = () => {
-    setIsActive(!isActive);
+    if (!isActive) {
+      // Starting a new session - automatically end any existing session
+      // Reset all session states to ensure clean start
+      setIsActive(true);
+      setIsProtected(false);
+      setSessionStartTime(null);
+      setBlockedAppsList([]);
+      setAppsBlocked(0);
+    } else {
+      // Stopping current session
+      setIsActive(false);
+    }
   };
 
   const resetTimer = () => {
     setTimeLeft(customMinutes * 60);
     setIsActive(false);
+    setIsProtected(false);
+    setSessionStartTime(null);
+    setBlockedAppsList([]);
+    setAppsBlocked(0);
   };
 
   const updateTimer = (newMinutes) => {
     setCustomMinutes(newMinutes);
     setTimeLeft(newMinutes * 60);
     setIsActive(false);
+    setIsProtected(false);
+    setSessionStartTime(null);
+    setBlockedAppsList([]);
+    setAppsBlocked(0);
   };
 
   return (
@@ -1070,29 +1158,37 @@ function FocusModeScreen({ route, navigation }) {
 
           {/* Protection Status */}
           <View style={{
-            backgroundColor: theme.accentGreen,
+            backgroundColor: isProtected ? theme.accentGreen : theme.surface,
             borderRadius: 20,
             padding: 30,
             alignItems: 'center',
-            marginBottom: 20
+            marginBottom: 20,
+            borderColor: isProtected ? theme.accentGreen : theme.border,
+            borderWidth: 2
           }}>
             <View style={{
               width: 60,
               height: 60,
               borderRadius: 30,
               borderWidth: 3,
-              borderColor: '#fff',
+              borderColor: isProtected ? '#fff' : theme.border,
               justifyContent: 'center',
               alignItems: 'center',
-              marginBottom: 15
+              marginBottom: 15,
+              backgroundColor: isProtected ? 'transparent' : theme.background
             }}>
-              <ShieldIcon size={30} color="#fff" />
+              <ShieldIcon size={30} color={isProtected ? "#fff" : theme.textSecondary} />
             </View>
-            <Text style={{ color: '#fff', fontSize: 24, fontWeight: 'bold', marginBottom: 5 }}>
-              PROTECTED
+            <Text style={{ 
+              color: isProtected ? '#fff' : theme.textSecondary, 
+              fontSize: 24, 
+              fontWeight: 'bold', 
+              marginBottom: 5 
+            }}>
+              {isProtected ? 'ENABLED' : 'DISABLED'}
             </Text>
-            <Text style={{ color: '#fff', fontSize: 16 }}>
-              Apps are being blocked
+            <Text style={{ color: isProtected ? '#fff' : theme.textSecondary, fontSize: 16 }}>
+              {isProtected ? 'Apps are being blocked' : 'Start timer to activate protection'}
             </Text>
           </View>
 
@@ -1125,11 +1221,16 @@ function FocusModeScreen({ route, navigation }) {
               borderColor: theme.border,
               borderWidth: 1
             }}>
-              <ShieldIcon size={20} color={theme.accentGreen} />
-              <Text style={{ color: theme.text, fontSize: 24, fontWeight: 'bold', marginBottom: 5 }}>
-                Active
+              <ShieldIcon size={20} color={isActive ? theme.accentGreen : theme.textSecondary} />
+              <Text style={{ 
+                color: isActive ? theme.accentGreen : theme.textSecondary, 
+                fontSize: 24, 
+                fontWeight: 'bold', 
+                marginBottom: 5 
+              }}>
+                {isActive ? 'Active' : 'Inactive'}
               </Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Protection Status</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Timer Status</Text>
             </View>
           </View>
 
@@ -1158,132 +1259,132 @@ function FocusModeScreen({ route, navigation }) {
               </Text>
             </View>
             
-            {/* Time Adjustment */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: theme.surface,
-                  padding: 8,
-                  borderRadius: 15,
-                  borderColor: theme.border,
-                  borderWidth: 1
-                }}
-                onPress={() => updateTimer(Math.max(1, customMinutes - 5))}
-              >
-                <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>-5</Text>
-              </TouchableOpacity>
-              
-              <Text style={{ color: theme.text, fontSize: 16, marginHorizontal: 15 }}>
-                {customMinutes} min
-              </Text>
-              
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: theme.surface,
-                  padding: 8,
-                  borderRadius: 15,
-                  borderColor: theme.border,
-                  borderWidth: 1
-                }}
-                onPress={() => updateTimer(Math.min(120, customMinutes + 5))}
-              >
-                <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>+5</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 15 }}>
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: theme.accentGreen,
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  borderRadius: 20,
-                  flexDirection: 'row',
-                  alignItems: 'center'
-                }}
-                onPress={toggleTimer}
-              >
-                <View style={{ marginRight: 5 }}>
-                  {isActive ? <PauseIcon size={16} color="#000" /> : <PlayIcon size={16} color="#000" />}
-                </View>
-                <Text style={{ color: '#000', fontSize: 16, fontWeight: '600' }}>
-                  {isActive ? 'Pause' : 'Start'}
+            {/* Time Adjustment - Only show when session is not active */}
+            {!isActive && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                <TouchableOpacity 
+                  style={{
+                    backgroundColor: theme.surface,
+                    padding: 8,
+                    borderRadius: 15,
+                    borderColor: theme.border,
+                    borderWidth: 1
+                  }}
+                  onPress={() => updateTimer(Math.max(1, customMinutes - 5))}
+                >
+                  <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>-5</Text>
+                </TouchableOpacity>
+                
+                <Text style={{ color: theme.text, fontSize: 16, marginHorizontal: 15 }}>
+                  {customMinutes} min
                 </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: theme.surface,
-                  paddingHorizontal: 20,
-                  paddingVertical: 10,
-                  borderRadius: 20,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  borderColor: theme.border,
-                  borderWidth: 1
-                }}
-                onPress={resetTimer}
-              >
-                <RefreshIcon size={16} color={theme.text} />
-                <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600', marginLeft: 5 }}>Reset</Text>
-              </TouchableOpacity>
-            </View>
+                
+                <TouchableOpacity 
+                  style={{
+                    backgroundColor: theme.surface,
+                    padding: 8,
+                    borderRadius: 15,
+                    borderColor: theme.border,
+                    borderWidth: 1
+                  }}
+                  onPress={() => updateTimer(Math.min(120, customMinutes + 5))}
+                >
+                  <Text style={{ color: theme.text, fontSize: 16, fontWeight: 'bold' }}>+5</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {!isActive && (
+              <View style={{ flexDirection: 'row', gap: 15, justifyContent: 'center' }}>
+                <TouchableOpacity 
+                  style={{
+                    backgroundColor: theme.accentGreen,
+                    paddingHorizontal: 30,
+                    paddingVertical: 15,
+                    borderRadius: 25,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                  onPress={toggleTimer}
+                >
+                  <PlayIcon size={20} color="#000" />
+                  <Text style={{ color: '#000', fontSize: 18, fontWeight: '600', marginLeft: 8 }}>
+                    Start Focus Session
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Currently Blocking */}
-          <View style={{
-            backgroundColor: theme.card,
-            borderRadius: 20,
-            padding: 20,
-            marginBottom: 20,
-            borderColor: theme.border,
-            borderWidth: 1
-          }}>
-            <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 15 }}>
-              Currently Blocking:
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {preset.blockedApps.map((app, index) => (
-                <View key={index} style={{
-                  backgroundColor: theme.danger,
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 15
-                }}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '500' }}>
-                    {app}
-                  </Text>
-                </View>
-              ))}
+          {isProtected && blockedAppsList.length > 0 && (
+            <View style={{
+              backgroundColor: theme.card,
+              borderRadius: 20,
+              padding: 20,
+              marginBottom: 20,
+              borderColor: theme.border,
+              borderWidth: 1
+            }}>
+              <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600', marginBottom: 15 }}>
+                Currently Blocking:
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {blockedAppsList.map((app, index) => (
+                  <View key={index} style={{
+                    backgroundColor: theme.danger,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 15
+                  }}>
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '500' }}>
+                      {app}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          )}
 
-          {/* Emergency Exit */}
-          <TouchableOpacity 
-            style={{
-              backgroundColor: theme.danger,
-              paddingVertical: 15,
-              borderRadius: 15,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 20
-            }}
-            onPress={() => navigation.navigate("FocusEndedScreen")}
-          >
-            <WarningIcon size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 8 }}>
-              EMERGENCY EXIT
-            </Text>
-          </TouchableOpacity>
+          {/* Emergency Exit - Only show when session is active */}
+          {isActive && (
+            <TouchableOpacity 
+              style={{
+                backgroundColor: theme.danger,
+                paddingVertical: 15,
+                borderRadius: 15,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 20
+              }}
+              onPress={() => navigation.navigate("FocusEndedScreen", { 
+                preset: preset,
+                presetName: presetName,
+                timeSpent: customMinutes * 60 - timeLeft
+              })}
+            >
+              <WarningIcon size={16} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 8 }}>
+                EMERGENCY EXIT
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
     </View>
     </SafeAreaView>
   );
 }
 
-function FocusEndedScreen({ navigation }) {
+function FocusEndedScreen({ route, navigation }) {
   const { theme } = useTheme();
+  const { preset, presetName, timeSpent } = route.params || {};
+  
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
   
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -1300,18 +1401,21 @@ function FocusEndedScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>Focus Session Complete!</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>
+              {presetName ? `${presetName} Session Complete!` : 'Focus Session Complete!'}
+            </Text>
             <Text style={[styles.cardText, { color: theme.textSecondary }]}>
-              Great job! You've completed your focus session. All apps have been unlocked and you can now access your full device.
+              Great job! You've completed your {presetName ? presetName.toLowerCase() : 'focus'} session. All apps have been unlocked and you can now access your full device.
             </Text>
             
-            <View style={[styles.card, { backgroundColor: theme.surface, marginVertical: 20, borderColor: theme.border }]}>
+            <View style={{ backgroundColor: theme.surface, marginVertical: 20, padding: 20, borderRadius: 15, borderColor: theme.border, borderWidth: 1 }}>
               <Text style={[styles.cardTitle, { fontSize: 18, color: theme.accent }]}>
                 Session Statistics
               </Text>
               <Text style={[styles.cardText, { color: theme.accent }]}>
-                • Duration: 25 minutes{'\n'}
-                • Apps blocked: 15+{'\n'}
+                • Session: {presetName || 'Focus'}{'\n'}
+                • Duration: {timeSpent ? formatTime(timeSpent) : '25:00'}{'\n'}
+                • Apps blocked: {preset ? preset.blockedApps.length : 4}{'\n'}
                 • Focus level: Excellent
               </Text>
             </View>

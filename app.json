@@ -5,19 +5,26 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./SENTINAL-LOGO.png",
     "splash": {
+      "image": "./SENTINAL-LOGO.png",
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sentinal.focusapp"
+      "bundleIdentifier": "com.sentinal.focusapp",
+      "icon": "./SENTINAL-LOGO.png",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./SENTINAL-LOGO.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.sentinal.focusapp"
+      "package": "com.sentinal.focusapp",
+      "icon": "./SENTINAL-LOGO.png",
+      "versionCode": 1
     }
   }
 }

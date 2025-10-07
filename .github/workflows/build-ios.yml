@@ -1,0 +1,68 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS App
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Setup Expo
+      uses: expo/expo-github-action@v8
+      with:
+        expo-version: latest
+        eas-version: latest
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Initialize EAS project
+      run: |
+        echo "Y" | eas init --non-interactive || true
+        
+    - name: Build iOS app (Development)
+      run: eas build --platform ios --profile development --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-build
+        path: |
+          *.ipa
+          build.log
+        retention-days: 30
+        
+    - name: Create Release
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          *.ipa
+        tag_name: v${{ github.run_number }}
+        name: SENTINAL iOS Build v${{ github.run_number }}
+        body: |
+          iOS build of SENTINAL focus app
+          
+          ## Installation Instructions
+          1. Download the .ipa file from the Assets section below
+          2. Install using Apple Developer app or TestFlight
+          3. Trust the developer certificate in Settings > General > VPN & Device Management
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
