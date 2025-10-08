@@ -38,12 +38,6 @@ jobs:
         eas init --non-interactive --force
         echo "EAS project initialized successfully"
         
-    - name: Configure iOS credentials
-      run: |
-        echo "Setting up iOS credentials with Apple Developer account..."
-        eas credentials --platform ios --clear-credentials --non-interactive
-        echo "Credentials configured"
-        
     - name: Build iOS app (Preview)
       run: |
         echo "Starting iOS build..."
