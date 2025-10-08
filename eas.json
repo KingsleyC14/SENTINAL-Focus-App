@@ -20,7 +20,7 @@
         "resourceClass": "m-medium",
         "simulator": false,
         "autoIncrement": true,
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       }
     },
     "production": {

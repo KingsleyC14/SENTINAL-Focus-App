@@ -15,7 +15,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sentinal.focusapp",
       "icon": "./SENTINAL-LOGO.png",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +28,11 @@
       "package": "com.sentinal.focusapp",
       "icon": "./SENTINAL-LOGO.png",
       "versionCode": 1
+    },
+    "extra": {
+      "eas": {
+        "projectId": "dd832fdf-bcb8-461a-9c18-d75d3b98a25b"
+      }
     }
   }
 }
