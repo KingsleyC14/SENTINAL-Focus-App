@@ -38,10 +38,10 @@ jobs:
         eas init --non-interactive --force
         echo "EAS project initialized successfully"
         
-    - name: Build iOS app (Preview)
+    - name: Build iOS app (Development)
       run: |
         echo "Starting iOS build..."
-        eas build --platform ios --profile preview --non-interactive --clear-cache
+        eas build --platform ios --profile development --non-interactive
         echo "Build completed successfully"
         
     - name: Download build artifacts
